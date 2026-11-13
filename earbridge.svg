@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Earbridge</title>
+  <defs>
+    <!-- slight wobble so every line reads as hand-drawn -->
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7"/>
+      <feDisplacementMap in="SourceGraphic" scale="2.4"/>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#f3efe6"/>
+  <g transform="translate(0 -12)" filter="url(#rough)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- arch: a headphone band and a bridge at once, drawn twice like a sketch -->
+    <g stroke="#2a2a2e">
+      <path d="M31 88C29 47 97 41 98 86" stroke-width="3.6"/>
+      <path d="M35 90C30 50 94 43 95 84" stroke-width="1.6" opacity=".55"/>
+      <!-- ear cups as loose piers -->
+      <path d="M28 80c-1 7 0 14 2 21M33 79c1 8 1 15 0 23" stroke-width="3"/>
+      <path d="M100 79c1 7 0 15-2 22M95 80c-1 8 0 15 1 22" stroke-width="3"/>
+      <!-- hatching under the arch -->
+      <path d="M49 63l6-6M55 66l9-9M63 66l7-7" stroke-width="1.4" opacity=".4"/>
+    </g>
+    <!-- sound crossing the bridge -->
+    <path d="M18 95C34 80 46 108 63 92S90 79 110 94" stroke="#b5664a" stroke-width="3.2"/>
+    <path d="M22 99C37 87 48 110 64 97S91 85 107 99" stroke="#b5664a" stroke-width="1.4" opacity=".5"/>
+  </g>
+</svg>
