@@ -60,18 +60,20 @@ Earbridge runs as a background service. The CLI, window, and tray all control th
 - **Remembers the chosen output** across service restarts.
 - **Restores your Bluetooth settings** when reception stops. If the service crashes or is killed, recovery runs when it next starts.
 - **Optional reception at login** with `earbridge autostart on`.
+- **Update in place** with `earbridge update`, including restarting the running service and reconnecting phones.
 
 ## Requirements
 
 - Linux with **PipeWire** (with Bluetooth support) and **BlueZ**
 - A Bluetooth adapter
 - Python 3 with **PyGObject**, **GTK 4** and **libadwaita**
+- **Git** to download updates
 - A desktop session D-Bus. A **StatusNotifierItem** tray host is needed to show the panel icon (for example, a Waybar `tray` module). Without a tray host, the CLI and window still work. Notification buttons require a notification server with action support; the window and CLI can always approve requests.
 
 On Arch Linux:
 
 ```sh
-sudo pacman -S --needed python-gobject gtk4 libadwaita pipewire-audio libpulse bluez bluez-utils util-linux
+sudo pacman -S --needed python-gobject gtk4 libadwaita pipewire-audio libpulse bluez bluez-utils util-linux git
 sudo systemctl enable --now bluetooth
 ```
 
@@ -86,7 +88,23 @@ cd earbridge
 sudo PREFIX=/usr/local ./install.sh   # or for every user on the PC
 ```
 
-This installs the `earbridge` CLI, an app launcher entry, and the icon. **Earbridge in the app list opens the UI** (`earbridge ui`). Run the installer again after updating the source to update your installed copy.
+This installs the `earbridge` CLI, an app launcher entry, and the icon. **Earbridge in the app list opens the UI** (`earbridge ui`).
+
+## Update
+
+```sh
+earbridge update --check           # Check for a newer commit without changing anything
+earbridge update                   # Download and install the latest main
+earbridge --json update --check    # Machine-readable update information
+```
+
+Updates use the repository recorded at installation, normally `https://github.com/Fadilix/earbridge.git`, and install into the same prefix. They do not change your source checkout, output preference, or login startup setting. GitHub's official SSH clone URL is converted to HTTPS for updates, so the installed command does not need an SSH key.
+
+The updater prepares the new files before stopping anything. If Earbridge is running, it restarts the service, restores reception to its previous state, attempts to reconnect connected phones, and reopens the window if it was open. Audio may briefly disconnect. Complete pending pairing requests before updating. If installation or service startup fails, it restores the previous files and attempts to resume the previous session. An already current installation is left running.
+
+Run updates as the installation's owner; a system-wide installation needs write access to its prefix. Only the invoking desktop session is restarted. Other logged-in users should restart Earbridge to load the new version.
+
+For a version installed before `earbridge update` was added, first run `git pull` and `./install.sh` from the source checkout once. Running `./install.sh` again is also available for installing local changes.
 
 To uninstall (use the same `PREFIX` you installed with):
 
@@ -148,6 +166,7 @@ These commands manage `~/.config/autostart/earbridge.desktop` (or the equivalent
 | `ipc.py` | Shared session-bus client and detached process startup. |
 | `ui.py` | GTK4/libadwaita window; a client of the service. |
 | `tray.py` | Independent StatusNotifierItem and D-Bus menu; no AppIndicator/GTK3 dependency. |
+| `updater.py` | Git updates, staged installation, process restart and rollback. |
 | `bluez.py` | Talks to BlueZ over D-Bus: adapter settings, the phones list, and a pairing agent that asks you before accepting a phone. |
 | `audio.py` | Watches PipeWire (through `pactl`) and moves incoming Bluetooth audio to the chosen output. |
 
@@ -161,9 +180,12 @@ The selected output is saved in `~/.config/earbridge/settings.json`. Background 
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 dbus-run-session -- python3 tests/integration.py
 dbus-run-session -- python3 tests/package.py
+dbus-run-session -- python3 tests/update_integration.py
 ```
 
 The integration check uses fake Bluetooth/audio hardware on an isolated D-Bus session and exercises the actual CLI, service, tray menu and notifications. If `gtk4-broadwayd` is installed, it also checks that closing or killing the real GTK window leaves reception running. No phone or live desktop session is needed.
+
+Updater checks use a local Git remote and temporary installations, including a running service/window update and recovery from a failed service startup. They do not download from GitHub or touch your installed copy.
 
 ## FAQ
 
