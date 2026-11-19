@@ -4,7 +4,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 import ipc  # noqa: E402
 
@@ -155,7 +155,6 @@ class Window(Adw.ApplicationWindow):
     def on_close(self, *_):
         # Closing/killing a client never stops reception or rejects a pending request.
         self.bus.signal_unsubscribe(self.subscription)
-        from gi.repository import Gio
         Gio.bus_unwatch_name(self.watch)
         return False
 
@@ -174,6 +173,9 @@ class App(Adw.Application):
     def __init__(self, connection):
         super().__init__(application_id="io.github.earbridge.Earbridge")
         self.connection = connection
+        quit_action = Gio.SimpleAction.new("quit", None)
+        quit_action.connect("activate", lambda *_: self.quit())
+        self.add_action(quit_action)
 
     def do_activate(self):
         win = self.get_active_window()

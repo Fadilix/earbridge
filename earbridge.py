@@ -44,6 +44,8 @@ def parser():
         sub.add_argument("request_id", help="ID from 'earbridge requests'")
     sub = commands.add_parser("autostart", help="enable or disable background reception at login")
     sub.add_argument("setting", choices=("on", "off", "status"))
+    sub = commands.add_parser("update", help="update this installation from main")
+    sub.add_argument("--check", action="store_true", help="check for updates without installing them")
     for name in ("_service", "_tray"):
         commands.add_parser(name, help=argparse.SUPPRESS)
     # Hide internal entry points from the help command list.
@@ -96,6 +98,15 @@ def display(command, result):
                 print(f"{item['id']}  {item['question']}\n  earbridge approve {item['id']} | earbridge deny {item['id']}")
     elif command == "autostart":
         print(f"Start at login: {'on' if result['autostart'] else 'off'}")
+    elif command == "update":
+        if result["updated"]:
+            print(f"Updated Earbridge to {result['latest'][:7]}.")
+        elif result["update_available"]:
+            print(f"Update available: {result['latest'][:7]}. Run 'earbridge update' to install it.")
+        else:
+            print(f"Earbridge is up to date ({result['latest'][:7]}).")
+        for warning in result["warnings"]:
+            print(warning, file=sys.stderr)
     else:
         print(result or "Done.")
 
@@ -109,6 +120,9 @@ def main(argv=None):
     try:
         if args.command == "autostart":
             result = autostart(args.setting)
+        elif args.command == "update":
+            from updater import update
+            result = update(HERE, check_only=args.check)
         elif args.command == "_service":
             from service import run
             return run()

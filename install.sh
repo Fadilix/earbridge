@@ -7,13 +7,14 @@ set -eu
 
 PREFIX="${PREFIX:-$HOME/.local}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
-APP="$PREFIX/share/earbridge"
-BIN="$PREFIX/bin/earbridge"
-DESKTOP="$PREFIX/share/applications/earbridge.desktop"
-ICON="$PREFIX/share/icons/hicolor/scalable/apps/earbridge.svg"
+INSTALL_ROOT="${DESTDIR:-}$PREFIX"
+APP="$INSTALL_ROOT/share/earbridge"
+BIN="$INSTALL_ROOT/bin/earbridge"
+DESKTOP="$INSTALL_ROOT/share/applications/earbridge.desktop"
+ICON="$INSTALL_ROOT/share/icons/hicolor/scalable/apps/earbridge.svg"
 
 if [ "${1:-}" = "--uninstall" ]; then
-    if [ -x "$BIN" ]; then
+    if [ -z "${DESTDIR:-}" ] && [ -x "$BIN" ]; then
         "$BIN" quit >/dev/null 2>&1 || true
         "$BIN" autostart off >/dev/null 2>&1 || true
     fi
@@ -31,6 +32,7 @@ fi
 missing=""
 need() { command -v "$1" >/dev/null 2>&1 || missing="$missing $2"; }
 need python3 python
+need git git
 need pactl libpulse
 need setpriv util-linux
 need bluetoothctl bluez-utils
@@ -44,16 +46,18 @@ fi
 
 install -d "$APP" "$(dirname "$BIN")" "$(dirname "$DESKTOP")" "$(dirname "$ICON")"
 install -m 644 "$SRC/bluez.py" "$SRC/audio.py" "$SRC/bridge.py" "$SRC/ipc.py" \
-    "$SRC/service.py" "$SRC/tray.py" "$SRC/ui.py" "$SRC/earbridge.svg" "$APP/"
+    "$SRC/service.py" "$SRC/tray.py" "$SRC/ui.py" "$SRC/updater.py" "$SRC/earbridge.svg" "$APP/"
 install -m 644 "$SRC/earbridge.svg" "$ICON"
 install -m 755 "$SRC/earbridge.py" "$APP/"
-ln -sf "$APP/earbridge.py" "$BIN"
+ln -sf "$PREFIX/share/earbridge/earbridge.py" "$BIN"
 
 # Desktop Exec escaping: quote the path and escape its reserved characters.
-EXEC_PATH=$(python3 - "$SRC" "$BIN" <<'PY'
+EXEC_PATH=$(python3 - "$SRC" "$PREFIX/bin/earbridge" "$PREFIX" "$APP" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
 from earbridge import desktop_exec
+from updater import record_install
+record_install(sys.argv[1], sys.argv[3], sys.argv[4])
 print(desktop_exec(sys.argv[2]))
 PY
 )
@@ -63,7 +67,7 @@ Type=Application
 Name=Earbridge
 Comment=Listen to your phone's audio through this PC
 Exec=$EXEC_PATH ui
-Icon=$ICON
+Icon=$PREFIX/share/icons/hicolor/scalable/apps/earbridge.svg
 Categories=AudioVideo;Audio;
 Terminal=false
 StartupNotify=true
