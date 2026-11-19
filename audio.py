@@ -23,7 +23,7 @@ def _is_phone_stream(stream):
 
 class PhoneRouter:
     """While running, keeps every incoming Bluetooth audio stream on one output.
-    With no output set, streams follow the system default like normal."""
+    With no output set, incoming Bluetooth streams follow the system default."""
 
     def __init__(self):
         self.sink = None
@@ -31,6 +31,8 @@ class PhoneRouter:
         self._pending = 0
 
     def start(self):
+        if self._proc:
+            return
         # pdeathsig: don't leave pactl running if this app is killed.
         self._proc = Gio.Subprocess.new(["setpriv", "--pdeathsig", "TERM", "pactl", "subscribe"],
                                         Gio.SubprocessFlags.STDOUT_PIPE)
@@ -38,6 +40,9 @@ class PhoneRouter:
         self.route()
 
     def stop(self):
+        if self._pending:
+            GLib.source_remove(self._pending)
+            self._pending = 0
         if self._proc:
             self._proc.force_exit()
             self._proc = None
@@ -47,12 +52,13 @@ class PhoneRouter:
         self.route()
 
     def _read(self, stream):
+        process = self._proc
         def on_line(src, res):
             try:
                 line, _ = src.read_line_finish_utf8(res)
             except GLib.Error:
                 return
-            if line is None:  # pactl exited
+            if line is None or self._proc is not process:  # exited or stopped
                 return
             if "sink-input" in line and not self._pending:
                 self._pending = GLib.timeout_add(200, self._route_later)
@@ -65,14 +71,17 @@ class PhoneRouter:
         return GLib.SOURCE_REMOVE
 
     def route(self):
-        if not self._proc or not self.sink:
+        if not self._proc:
             return
         try:
+            sink = self.sink or subprocess.run(
+                ["pactl", "get-default-sink"], capture_output=True, text=True, check=True,
+            ).stdout.strip()
             sinks = {s["name"]: s["index"] for s in _pactl_json("list", "sinks")}
-            target = sinks.get(self.sink)
+            target = sinks.get(sink)
             for stream in _pactl_json("list", "sink-inputs"):
                 if target is not None and _is_phone_stream(stream) and stream["sink"] != target:
-                    subprocess.run(["pactl", "move-sink-input", str(stream["index"]), self.sink],
+                    subprocess.run(["pactl", "move-sink-input", str(stream["index"]), sink],
                                    capture_output=True)
         except (subprocess.CalledProcessError, ValueError, KeyError):
             pass  # audio server restarting; the next event retries

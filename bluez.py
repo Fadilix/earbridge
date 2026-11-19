@@ -99,6 +99,8 @@ class Bluez:
 
     def restore(self, saved):
         # Visibility first, power last: an unpowered adapter rejects the others.
+        if not self.adapter_props().get("Powered"):
+            self.set_adapter("Powered", True)
         for prop in ("Discoverable", "DiscoverableTimeout", "Pairable", "Powered"):
             if prop in saved:
                 self.set_adapter(prop, saved[prop])
