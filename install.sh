@@ -13,6 +13,10 @@ DESKTOP="$PREFIX/share/applications/earbridge.desktop"
 ICON="$PREFIX/share/icons/hicolor/scalable/apps/earbridge.svg"
 
 if [ "${1:-}" = "--uninstall" ]; then
+    if [ -x "$BIN" ]; then
+        "$BIN" quit >/dev/null 2>&1 || true
+        "$BIN" autostart off >/dev/null 2>&1 || true
+    fi
     rm -rf "$APP" "$BIN" "$DESKTOP" "$ICON"
     echo "Earbridge removed from $PREFIX"
     exit 0
@@ -39,26 +43,38 @@ if [ -n "$missing" ]; then
 fi
 
 install -d "$APP" "$(dirname "$BIN")" "$(dirname "$DESKTOP")" "$(dirname "$ICON")"
-install -m 644 "$SRC/bluez.py" "$SRC/audio.py" "$SRC/earbridge.svg" "$APP/"
+install -m 644 "$SRC/bluez.py" "$SRC/audio.py" "$SRC/bridge.py" "$SRC/ipc.py" \
+    "$SRC/service.py" "$SRC/tray.py" "$SRC/ui.py" "$SRC/earbridge.svg" "$APP/"
 install -m 644 "$SRC/earbridge.svg" "$ICON"
 install -m 755 "$SRC/earbridge.py" "$APP/"
 ln -sf "$APP/earbridge.py" "$BIN"
 
+# Desktop Exec escaping: quote the path and escape its reserved characters.
+EXEC_PATH=$(python3 - "$SRC" "$BIN" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from earbridge import desktop_exec
+print(desktop_exec(sys.argv[2]))
+PY
+)
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Earbridge
 Comment=Listen to your phone's audio through this PC
-Exec=$BIN
+Exec=$EXEC_PATH ui
 Icon=$ICON
 Categories=AudioVideo;Audio;
+Terminal=false
+StartupNotify=true
 EOF
 
 # Launchers that look the icon up by name need the hicolor cache refreshed.
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -qtf "$PREFIX/share/icons/hicolor" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(dirname "$DESKTOP")" >/dev/null 2>&1 || true
 
-echo "Earbridge installed: run 'earbridge' or open it from your app launcher."
+echo "Earbridge installed: 'earbridge start' runs in the background; 'earbridge ui' opens the window."
+echo "The Earbridge app launcher opens the UI. Run 'earbridge --help' for all commands."
 case ":$PATH:" in
     *":$PREFIX/bin:"*) ;;
     *) echo "Note: $PREFIX/bin is not on your PATH." ;;
