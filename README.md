@@ -39,32 +39,39 @@ flowchart LR
     B -- "chosen output" --> H["🎧 Wired headphones"]
 ```
 
-| Switch **on** | Switch **off** (or close the window) |
+| Reception **on** | Reception **off** |
 | --- | --- |
 | The PC becomes visible and pairable as a Bluetooth speaker | Phones Earbridge connected are disconnected |
-| Pairing requests appear as a popup with the code to compare | Visibility, pairing and power go back to what they were before |
+| Pairing requests appear in notifications and the optional window | Visibility, pairing and power go back to what they were before |
 | The phone's audio goes to the output you pick | Nothing on the phone or PC stays changed |
 
 No app on the phone: it pairs with your PC like it would with any Bluetooth speaker.
 
+Earbridge runs as a background service. The CLI, window, and tray all control the same service. **Closing or killing the window keeps phone audio playing.** Use `earbridge stop` to disable reception, or `earbridge quit` to stop reception and exit the service and tray.
+
 ## Features
 
-- **One switch** to turn the bridge on and off.
+- **CLI controls** for reception, phone connections, outputs, and pairing approvals.
+- **Optional window** with one switch to turn reception on and off. Opening it shows the running service's current state.
+- **Tray indicator** with reception status, Open Earbridge, Enable/Disable reception, and Quit Earbridge. Clicking the icon opens the window.
 - **Pick the output** ("Play through"): headphones, HDMI, or the system default. Only the phone's audio is moved; your other PC sounds stay where they are.
 - **Pick the phones**: paired phones are listed with a connect switch each.
-- **You approve every new phone**: pairing shows the 6-digit code to compare, and a phone needs your OK before it can play audio.
-- **Restores your settings exactly**, even if the app crashes or is killed while on (they're restored on the next launch).
+- **You approve every new phone**: compare the 6-digit code and approve in the notification, window, or CLI. Requests expire after 60 seconds and are never accepted automatically.
+- **Remembers the chosen output** across service restarts.
+- **Restores your Bluetooth settings** when reception stops. If the service crashes or is killed, recovery runs when it next starts.
+- **Optional reception at login** with `earbridge autostart on`.
 
 ## Requirements
 
 - Linux with **PipeWire** (with Bluetooth support) and **BlueZ**
 - A Bluetooth adapter
 - Python 3 with **PyGObject**, **GTK 4** and **libadwaita**
+- A desktop session D-Bus. A **StatusNotifierItem** tray host is needed to show the panel icon (for example, a Waybar `tray` module). Without a tray host, the CLI and window still work. Notification buttons require a notification server with action support; the window and CLI can always approve requests.
 
 On Arch Linux:
 
 ```sh
-sudo pacman -S --needed python-gobject gtk4 libadwaita pipewire-audio bluez bluez-utils
+sudo pacman -S --needed python-gobject gtk4 libadwaita pipewire-audio libpulse bluez bluez-utils util-linux
 sudo systemctl enable --now bluetooth
 ```
 
@@ -79,7 +86,7 @@ cd earbridge
 sudo PREFIX=/usr/local ./install.sh   # or for every user on the PC
 ```
 
-This installs the `earbridge` command, an app launcher entry, and the icon.
+This installs the `earbridge` CLI, an app launcher entry, and the icon. **Earbridge in the app list opens the UI** (`earbridge ui`). Run the installer again after updating the source to update your installed copy.
 
 To uninstall (use the same `PREFIX` you installed with):
 
@@ -89,23 +96,74 @@ To uninstall (use the same `PREFIX` you installed with):
 
 ## Usage
 
-1. Run `earbridge` (or open **Earbridge** from your app launcher).
-2. Turn on **Receive phone audio**. The PC shows up on your phone under its Bluetooth name.
-3. On the phone, open Bluetooth settings and pick the PC. Accept the popups on the PC: check that both screens show the same code.
-4. Choose your headphones in **Play through** and play something on the phone.
-5. Turn the switch off when you're done.
+Run `earbridge` without arguments for CLI help. To receive audio without a window:
 
-Next time, the phone is already paired: turn the switch on and connect it from the phone, or with its switch in the **Phones** list.
+```sh
+earbridge start                    # Enable reception; returns to the terminal
+earbridge status                   # Reception, output, connected phones, errors
+earbridge outputs                  # Available output names and descriptions
+earbridge output <output-name>     # Route phone audio to this output
+earbridge output default           # Use the system default for incoming streams
+```
+
+On the phone, open Bluetooth settings and pick the PC. Compare the pairing code, then approve the request in the notification or with the CLI:
+
+```sh
+earbridge requests                 # Show the question, code and request ID
+earbridge approve <request-id>     # Approve that specific pending request
+earbridge deny <request-id>        # Reject it instead
+```
+
+Play something on the phone. Next time, it is already paired: enable reception and connect from the phone or the CLI. Phone selectors accept a Bluetooth address or an exact, unambiguous name; quote names with spaces.
+
+```sh
+earbridge phones
+earbridge connect AA:BB:CC:DD:EE:FF
+earbridge disconnect AA:BB:CC:DD:EE:FF
+earbridge ui                       # Open the window; reception stays as it is
+earbridge stop                     # Disable reception and restore Bluetooth
+earbridge quit                     # Also exit the background service and tray
+earbridge --json status            # JSON output for scripts
+```
+
+Alternatively, open **Earbridge** from your app launcher, turn on **Receive phone audio**, and select your headphones in **Play through**. The window can be closed at any time without interrupting audio. The tray stays available while the service runs, even with reception disabled.
+
+Reception at login is off by default:
+
+```sh
+earbridge autostart on
+earbridge autostart status
+earbridge autostart off
+```
+
+These commands manage `~/.config/autostart/earbridge.desktop` (or the equivalent under `XDG_CONFIG_HOME`). Disabling login startup does not stop the current session.
 
 ## How it works
 
 | File | Role |
 | --- | --- |
-| `earbridge.py` | The window. Saves the adapter state when turned on and restores it when turned off. |
+| `earbridge.py` | CLI and explicit `ui` entry point. |
+| `service.py` | One background service per desktop session, with D-Bus commands and notifications. |
+| `bridge.py` | Bridge lifetime, saved adapter state, shutdown and crash recovery. |
+| `ipc.py` | Shared session-bus client and detached process startup. |
+| `ui.py` | GTK4/libadwaita window; a client of the service. |
+| `tray.py` | Independent StatusNotifierItem and D-Bus menu; no AppIndicator/GTK3 dependency. |
 | `bluez.py` | Talks to BlueZ over D-Bus: adapter settings, the phones list, and a pairing agent that asks you before accepting a phone. |
 | `audio.py` | Watches PipeWire (through `pactl`) and moves incoming Bluetooth audio to the chosen output. |
 
-While the switch is on, the adapter's previous state is also written to `~/.local/state/earbridge/session.json`. If Earbridge doesn't shut down cleanly, the next launch reads that file and restores your settings.
+While reception is on, the adapter's previous state is written to `~/.local/state/earbridge/session.json`. If the service doesn't shut down cleanly, its next launch restores those settings before a new session starts. Normal shutdown waits for new phone disconnections before restoring adapter power; previously connected phones are preserved. `SIGINT`, `SIGTERM`, and `SIGHUP` request graceful service shutdown. A failed restoration retains the journal; retry with `earbridge stop`.
+
+The selected output is saved in `~/.config/earbridge/settings.json`. Background logs are in `~/.local/state/earbridge/_service.log` and `_tray.log`; UI launches from the tray also log to `ui.log`. State and config paths respect `XDG_STATE_HOME` and `XDG_CONFIG_HOME`.
+
+## Development checks
+
+```sh
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+dbus-run-session -- python3 tests/integration.py
+dbus-run-session -- python3 tests/package.py
+```
+
+The integration check uses fake Bluetooth/audio hardware on an isolated D-Bus session and exercises the actual CLI, service, tray menu and notifications. If `gtk4-broadwayd` is installed, it also checks that closing or killing the real GTK window leaves reception running. No phone or live desktop session is needed.
 
 ## FAQ
 
