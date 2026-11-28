@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="earbridge.svg?v=2" alt="Earbridge logo" width="112">
+<img src="earbridge.svg?v=3" alt="Earbridge logo" width="112">
 
 # Earbridge
 
-**Listen to your phone through the headphones plugged into your PC.**
+**One pair of headphones. Every device.**
 
-Wireless from the phone to the PC, wired from the PC to your ears.
+Play your phone, tablet or laptop through the headphones on your PC. Wireless from each device to the PC, one cable (or one Bluetooth link) from the PC to your ears.
 
 ![Linux](https://img.shields.io/badge/Linux-only-1e1b4b?logo=linux&logoColor=white)
 ![PipeWire](https://img.shields.io/badge/audio-PipeWire-6366f1)
@@ -52,10 +52,11 @@ Earbridge runs as a background service. The CLI, window, and tray all control th
 ## Features
 
 - **CLI controls** for reception, phone connections, outputs, and pairing approvals.
-- **Optional window** with one switch to turn reception on and off. Opening it shows the running service's current state.
+- **A window that shows the whole route**: which device you're listening to, this PC, and the headphones it plays on, with a live indicator while audio flows. It also shows battery level, what's playing (with play/pause/next/previous), and one button to start listening.
 - **Tray indicator** with reception status, Open Earbridge, Enable/Disable reception, and Quit Earbridge. Clicking the icon opens the window.
 - **Pick the output** ("Play through"): headphones, HDMI, or the system default. Only the phone's audio is moved; your other PC sounds stay where they are.
-- **Pick the phones**: paired phones are listed with a connect switch each.
+- **Pick the devices**: paired phones, tablets and laptops are listed with a connect switch each.
+- **Add devices from the PC**: search for nearby devices and pair them from the window or with `earbridge scan on` and `earbridge pair`. You still approve the code.
 - **You approve every new phone**: compare the 6-digit code and approve in the notification, window, or CLI. Requests expire after 60 seconds and are never accepted automatically.
 - **Remembers the chosen output** across service restarts.
 - **Restores your Bluetooth settings** when reception stops. If the service crashes or is killed, recovery runs when it next starts.
@@ -137,6 +138,10 @@ Play something on the phone. Next time, it is already paired: enable reception a
 ```sh
 earbridge phones
 earbridge connect AA:BB:CC:DD:EE:FF
+earbridge scan on                  # Look for nearby devices for 45 seconds
+earbridge nearby                   # List what was found
+earbridge pair AA:BB:CC:DD:EE:FF   # Pair and connect it (approve the code when asked)
+earbridge media pause              # play, pause, next or previous on the connected device
 earbridge disconnect AA:BB:CC:DD:EE:FF
 earbridge ui                       # Open the window; reception stays as it is
 earbridge stop                     # Disable reception and restore Bluetooth

@@ -65,7 +65,7 @@ cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Earbridge
-Comment=Listen to your phone's audio through this PC
+Comment=One pair of headphones. Every device.
 Exec=$EXEC_PATH ui
 Icon=$PREFIX/share/icons/hicolor/scalable/apps/earbridge.svg
 Categories=AudioVideo;Audio;

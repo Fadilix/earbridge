@@ -14,9 +14,15 @@ class FakeBluez:
     def __init__(self):
         self.props = {"Powered": False, "Pairable": False, "Discoverable": False, "DiscoverableTimeout": 180}
         self.devices = [
-            {"path": "/before", "name": "Existing phone", "address": "00:00:00:00:00:01", "connected": True},
+            {"path": "/before", "name": "Existing phone", "address": "00:00:00:00:00:01", "connected": True,
+             "icon": "phone", "battery": 64, "streaming": True,
+             "player": {"path": "/before/player0", "app": "Music", "status": "playing", "title": "Night Drive",
+                        "artist": "The Midnight", "album": "", "duration": 240000, "position": 61000}},
             {"path": "/new", "name": "New phone", "address": "00:00:00:00:00:02", "connected": False},
         ]
+        self.nearby = [{"path": "/tablet", "name": "Living room tablet", "address": "00:00:00:00:00:03", "icon": "computer", "rssi": -48}]
+        self.discovering = False
+        self.media_commands = []
         self.disconnects = []
         self.pending_disconnects = []
         self.delayed = False
@@ -62,9 +68,30 @@ class FakeBluez:
         next(p for p in self.devices if p["path"] == path)["connected"] = True
         done(None)
 
+    def candidates(self):
+        return [dict(d) for d in self.nearby]
+
+    def start_discovery(self, done):
+        self.discovering = True
+        done(None)
+
+    def stop_discovery(self, done=lambda err: None):
+        self.discovering = False
+        done(None)
+
+    def pair(self, path, done):
+        device = next(d for d in self.nearby if d["path"] == path)
+        self.nearby.remove(device)
+        self.devices.append({"path": path, "name": device["name"], "address": device["address"], "connected": False})
+        done(None)
+
+    def media(self, path, action, done):
+        self.media_commands.append(action)
+        done(None)
+
 
 class FakeRouter:
-    def __init__(self):
+    def __init__(self, changed=None):
         self.running = False
         self.sink = None
 

@@ -5,6 +5,10 @@ from gi.repository import Gio, GLib
 BLUEZ = "org.bluez"
 ADAPTER = "org.bluez.Adapter1"
 DEVICE = "org.bluez.Device1"
+BATTERY = "org.bluez.Battery1"
+PLAYER = "org.bluez.MediaPlayer1"
+TRANSPORT = "org.bluez.MediaTransport1"
+PLAYER_ACTIONS = {"play": "Play", "pause": "Pause", "next": "Next", "previous": "Previous"}
 PROPS = "org.freedesktop.DBus.Properties"
 A2DP_SOURCE = "0000110a-0000-1000-8000-00805f9b34fb"  # the phone sends audio
 AGENT_PATH = "/org/earbridge/agent"
@@ -54,9 +58,13 @@ class Bluez:
         return self._objects()[self.adapter][ADAPTER]
 
     def phones(self):
-        """Paired devices that can send audio, as dicts sorted by name."""
+        """Paired devices that can send audio, as dicts sorted by name.
+
+        Also reports battery level, whether audio is streaming right now, and
+        the phone's media player (AVRCP) when it exposes one."""
+        objects = self._objects()
         out = []
-        for path, ifs in self._objects().items():
+        for path, ifs in objects.items():
             d = ifs.get(DEVICE)
             if not d or d.get("Adapter") != self.adapter or not d.get("Paired"):
                 continue
@@ -67,8 +75,72 @@ class Bluez:
                 "name": d.get("Alias") or d.get("Name") or d["Address"],
                 "address": d["Address"],
                 "connected": bool(d.get("Connected")),
+                "icon": d.get("Icon") or "phone",
+                "battery": ifs.get(BATTERY, {}).get("Percentage"),
+                "streaming": False,
+                "player": None,
             })
+            phone = out[-1]
+            for child, child_ifs in objects.items():
+                if not child.startswith(path + "/"):
+                    continue
+                if child_ifs.get(TRANSPORT, {}).get("State") == "active":
+                    phone["streaming"] = True
+                player = child_ifs.get(PLAYER)
+                if player and (phone["player"] is None or player.get("Status") == "playing"):
+                    track = player.get("Track", {})
+                    title = track.get("Title") or ""
+                    phone["player"] = {
+                        "path": child,
+                        "app": player.get("Name") or "",
+                        "status": player.get("Status") or "stopped",
+                        "title": "" if title == "Not Provided" else title,
+                        "artist": track.get("Artist") or "",
+                        "album": track.get("Album") or "",
+                        "duration": track.get("Duration") or 0,
+                        "position": player.get("Position") or 0,
+                    }
         return sorted(out, key=lambda p: p["name"].lower())
+
+    def candidates(self):
+        """Nearby, not yet paired devices that could send audio (phones, tablets, laptops)."""
+        out = []
+        for path, ifs in self._objects().items():
+            d = ifs.get(DEVICE)
+            if not d or d.get("Adapter") != self.adapter or d.get("Paired"):
+                continue
+            icon = d.get("Icon") or ""
+            major = (d.get("Class", 0) >> 8) & 0x1F  # 1 = computer, 2 = phone
+            if not (A2DP_SOURCE in d.get("UUIDs", []) or icon in ("phone", "computer") or major in (1, 2)):
+                continue
+            if not (d.get("Name") or d.get("Alias")):
+                continue  # anonymous beacons are not worth listing
+            out.append({
+                "path": path,
+                "name": d.get("Alias") or d.get("Name"),
+                "address": d["Address"],
+                "icon": icon or ("computer" if major == 1 else "phone"),
+                "rssi": d.get("RSSI"),
+            })
+        # Strongest signal first: the device in your hand is usually closest.
+        return sorted(out, key=lambda p: -(p["rssi"] if p["rssi"] is not None else -999))
+
+    def _adapter_call(self, method, done):
+        def finish(bus, res):
+            try:
+                bus.call_finish(res)
+                done(None)
+            except GLib.Error as e:
+                done(e.message)
+        self.bus.call(BLUEZ, self.adapter, ADAPTER, method, None, None,
+                      Gio.DBusCallFlags.NONE, 10000, None, finish)
+
+    def start_discovery(self, done):
+        # BlueZ ends discovery by itself if this process exits.
+        self._adapter_call("StartDiscovery", done)
+
+    def stop_discovery(self, done=lambda err: None):
+        self._adapter_call("StopDiscovery", done)
 
     def name_of(self, path):
         d = self._objects().get(path, {}).get(DEVICE, {})
@@ -117,11 +189,33 @@ class Bluez:
         self.bus.call(BLUEZ, path, DEVICE, method, params, None,
                       Gio.DBusCallFlags.NONE, 30000, None, finish)
 
+    def pair(self, path, done):
+        """Pair from this PC. BlueZ asks the agent to confirm the code."""
+        def finish(bus, res):
+            try:
+                bus.call_finish(res)
+                done(None)
+            except GLib.Error as e:
+                done(e.message)
+        self.bus.call(BLUEZ, path, DEVICE, "Pair", None, None,
+                      Gio.DBusCallFlags.NONE, 90000, None, finish)
+
     def connect_audio(self, path, done):
         self._device_call(path, "ConnectProfile", GLib.Variant("(s)", (A2DP_SOURCE,)), done)
 
     def disconnect(self, path, done=lambda err: None):
         self._device_call(path, "Disconnect", None, done)
+
+    def media(self, player_path, action, done):
+        """Send a play/pause/next/previous command to a phone's media player."""
+        def finish(bus, res):
+            try:
+                bus.call_finish(res)
+                done(None)
+            except GLib.Error as e:
+                done(e.message)
+        self.bus.call(BLUEZ, player_path, PLAYER, PLAYER_ACTIONS[action], None, None,
+                      Gio.DBusCallFlags.NONE, 10000, None, finish)
 
     # --- pairing agent -----------------------------------------------------
 

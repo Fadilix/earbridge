@@ -95,7 +95,7 @@ class Tray:
         if self.error or self.state.get("error"):
             return "Earbridge needs attention"
         count = sum(p["connected"] for p in self.state.get("phones", []))
-        return f"Reception on · {count} phone(s) connected" if self.state.get("active") else "Reception off"
+        return f"Reception on · {count} device(s) connected" if self.state.get("active") else "Reception off"
 
     def status(self):
         return "NeedsAttention" if self.state.get("requests") or self.error or self.state.get("error") else "Active"

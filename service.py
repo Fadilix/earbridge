@@ -27,6 +27,8 @@ class Service:
         self.notification = None
         self.quitting = False
         self.recovering = False
+        self.scan_timeout = 0
+        self.pairing = set()
         self.waiting = []
         self.config_file = ipc.CONFIG_DIR / "settings.json"
         self.session_file = ipc.STATE_DIR / "session.json"
@@ -77,7 +79,7 @@ class Service:
     def ensure_bridge(self):
         if self.bridge is None:
             bt = Bluez(self.changed)
-            router = audio.PhoneRouter()
+            router = audio.PhoneRouter(self.changed)
             router.set_sink(self.output)
             self.bridge = Bridge(bt, router, self.session_file, self.ask, self.changed)
             self.error = None
@@ -85,11 +87,14 @@ class Service:
 
     def status(self):
         phones = []
+        nearby = []
         adapter = None
         if self.bridge:
             try:
                 adapter = self.bridge.bt.adapter_props().get("Alias", "this PC")
                 phones = self.bridge.bt.phones()
+                if self.scan_timeout:
+                    nearby = [dict(d, pairing=d["path"] in self.pairing) for d in self.bridge.bt.candidates()]
             except Exception as error:
                 self.error = str(error)
         return {
@@ -102,6 +107,10 @@ class Service:
             "phones": phones,
             "requests": self.requests(),
             "error": self.error,
+            # Added for the window; older clients ignore these keys.
+            "playback": audio.playback(self.output),
+            "scanning": bool(self.scan_timeout),
+            "nearby": nearby,
         }
 
     def requests(self):
@@ -163,6 +172,7 @@ class Service:
         if action == "start":
             return bridge.start(lambda error: self.completed(error, done, "Reception enabled in the background."))
         if action in ("stop", "quit"):
+            self.stop_scan()
             def stopped(error):
                 self.completed(error, done, "Earbridge stopped." if action == "quit" else "Reception disabled; Bluetooth settings restored.")
                 if action == "quit" and not error:
@@ -170,6 +180,54 @@ class Service:
             return bridge.stop(stopped)
         if action == "phones":
             return done(bridge.bt.phones())
+        if action == "nearby":
+            return done(bridge.bt.candidates())
+        if action == "scan":
+            if not arguments.get("enabled", True):
+                self.stop_scan()
+                return done("Stopped looking for devices.")
+            if not bridge.active:
+                raise RuntimeError("Reception is off; run 'earbridge start' first")
+            def scanning(error):
+                if not error and not self.scan_timeout:
+                    # Discovery drains battery and radio time: cap it.
+                    self.scan_timeout = GLib.timeout_add_seconds(45, self.scan_expired)
+                self.completed(error, done, "Looking for nearby devices for 45 seconds.")
+            if self.scan_timeout:
+                return done("Already looking for nearby devices.")
+            return bridge.bt.start_discovery(scanning)
+        if action == "pair":
+            if not bridge.active:
+                raise RuntimeError("Reception is off; run 'earbridge start' first")
+            selector = arguments["device"].casefold()
+            matches = [d for d in bridge.bt.candidates() if selector in (d["address"].casefold(), d["name"].casefold(), d["path"].casefold())]
+            if len(matches) != 1:
+                raise RuntimeError("Device not found nearby or name is ambiguous; run 'earbridge nearby'")
+            device = matches[0]
+            if device["path"] in self.pairing:
+                return done(f"{device['name']}: already pairing.")
+            self.pairing.add(device["path"])
+            def connected(error):
+                self.pairing.discard(device["path"])
+                self.completed(error, done, f"{device['name']}: added and connected.")
+            def paired(error):
+                if error or not bridge.active:
+                    self.pairing.discard(device["path"])
+                    return self.completed(error, done, f"{device['name']}: paired.")
+                bridge.allowed.add(device["path"])
+                bridge.bt.connect_audio(device["path"], connected)
+            bridge.bt.pair(device["path"], paired)
+            self.changed()
+            return
+        if action == "media":
+            command = arguments["command"]
+            if command not in ("play", "pause", "next", "previous"):
+                raise RuntimeError("Media command must be play, pause, next or previous")
+            players = [p["player"] for p in bridge.bt.phones() if p.get("connected") and p.get("player")
+                       and arguments.get("phone", "").casefold() in ("", p["address"].casefold(), p["name"].casefold())]
+            if not players:
+                raise RuntimeError("No connected device is sharing its media controls")
+            return bridge.bt.media(players[0]["path"], command, lambda error: self.completed(error, done, f"Sent {command}."))
         if action in ("connect", "disconnect"):
             if bridge.busy:
                 raise RuntimeError("Bluetooth is changing state; try again shortly")
@@ -200,6 +258,24 @@ class Service:
             self.changed()
             return
         raise RuntimeError(f"Unknown command: {action}")
+
+    def scan_expired(self):
+        # Swap in a no-op source so stop_scan can remove it like any other.
+        self.scan_timeout = GLib.idle_add(lambda: GLib.SOURCE_REMOVE)
+        self.stop_scan()
+        return GLib.SOURCE_REMOVE
+
+    def stop_scan(self):
+        if not self.scan_timeout:
+            return
+        GLib.source_remove(self.scan_timeout)
+        self.scan_timeout = 0
+        if self.bridge:
+            try:
+                self.bridge.bt.stop_discovery(lambda error: None)
+            except Exception as error:
+                print(f"earbridge: could not stop discovery: {error}", file=sys.stderr, flush=True)
+        self.changed()
 
     def exit_later(self):
         self.quitting = True

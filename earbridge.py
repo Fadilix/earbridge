@@ -20,14 +20,15 @@ def desktop_exec(binary):
 
 
 def parser():
-    cli = argparse.ArgumentParser(description="Receive phone audio in the background over Bluetooth.")
+    cli = argparse.ArgumentParser(description="One pair of headphones, every device: play your phone, tablet or laptop through this PC over Bluetooth.")
     cli.add_argument("--json", action="store_true", help="print machine-readable JSON")
     commands = cli.add_subparsers(dest="command")
     for name, help_text in (
         ("start", "enable reception in the background"),
         ("stop", "disable reception and restore Bluetooth settings"),
         ("status", "show service and bridge state"),
-        ("phones", "list paired phones"),
+        ("phones", "list paired devices"),
+        ("nearby", "list nearby unpaired devices found by 'earbridge scan on'"),
         ("outputs", "list audio outputs"),
         ("requests", "list pending pairing and audio authorization requests"),
         ("ui", "open the graphical interface"),
@@ -37,6 +38,13 @@ def parser():
     for name in ("connect", "disconnect"):
         sub = commands.add_parser(name, help=f"{name} a phone by address or exact name")
         sub.add_argument("phone")
+    sub = commands.add_parser("pair", help="pair and connect a nearby device by address or exact name")
+    sub.add_argument("device")
+    sub = commands.add_parser("scan", help="look for nearby devices for 45 seconds, or stop looking")
+    sub.add_argument("enabled", choices=("on", "off"))
+    sub = commands.add_parser("media", help="control what is playing on the connected device")
+    # "command" is taken by the subparser itself, so store it under another name.
+    sub.add_argument("media_command", metavar="command", choices=("play", "pause", "next", "previous"))
     sub = commands.add_parser("output", help="select an output by name; use 'default' for the system default")
     sub.add_argument("output")
     for name in ("approve", "deny"):
@@ -62,7 +70,7 @@ def autostart(setting):
         binary = desktop_exec(HERE / "earbridge.py")
         entry.write_text('[Desktop Entry]\nType=Application\nName=Earbridge\n'
                          f'Exec={binary} start\nIcon=earbridge\nTerminal=false\n'
-                         'Comment=Receive phone audio in the background\n')
+                         'Comment=One pair of headphones. Every device.\n')
     elif setting == "off":
         entry.unlink(missing_ok=True)
     return {"autostart": entry.exists()}
@@ -79,19 +87,31 @@ def display(command, result):
         if result.get("adapter"):
             print(f"Bluetooth name: {result['adapter']}")
         print(f"Output: {result.get('output') or 'System default'}")
+        playback = result.get("playback")
+        if playback:
+            print(f"Playing through: {playback['description']} ({playback['kind']})")
         for phone in result.get("phones", []):
             if phone["connected"]:
                 print(f"Connected: {phone['name']} ({phone['address']})")
+                player = phone.get("player") or {}
+                if player.get("title"):
+                    print(f"  {player['status'].capitalize()}: {player['title']}" + (f" by {player['artist']}" if player.get("artist") else ""))
         if result.get("requests"):
             print("Pairing/authorization pending: run 'earbridge requests'")
         if result.get("error"):
             print(f"Error: {result['error']}")
+    elif command == "nearby":
+        if not result:
+            print("No nearby devices. Run 'earbridge scan on' first.")
+        for item in result:
+            print(f"{item['address']}  {item['name']}" + ("" if item.get("rssi") is None else f"  {item['rssi']} dBm"))
     elif command in ("phones", "outputs", "requests"):
         if not result:
             print(f"No {command}.")
         for item in result:
             if command == "phones":
-                print(f"{item['address']}  {item['name']}  {'connected' if item['connected'] else 'disconnected'}")
+                battery = "" if item.get("battery") is None else f"  {item['battery']}%"
+                print(f"{item['address']}  {item['name']}  {'connected' if item['connected'] else 'disconnected'}{battery}")
             elif command == "outputs":
                 print(f"{item['name']}  {item['description']}")
             else:
@@ -143,7 +163,12 @@ def main(argv=None):
             else:
                 connection = ipc.ensure_service()
                 arguments = {k: v for k, v in vars(args).items() if k not in ("command", "json")}
-                result = ipc.command(args.command, connection=connection, **arguments)
+                action = args.command
+                if action == "scan":
+                    arguments["enabled"] = arguments["enabled"] == "on"
+                elif action == "media":
+                    arguments["command"] = arguments.pop("media_command")
+                result = ipc.command(action, connection=connection, **arguments)
         if args.json:
             print(json.dumps(result))
         else:

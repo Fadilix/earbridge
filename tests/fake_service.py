@@ -13,6 +13,13 @@ from test_bridge import FakeBluez, FakeRouter
 service.Bluez = lambda changed: FakeBluez()
 service.audio.PhoneRouter = FakeRouter
 service.audio.outputs = lambda: [("headphones", "Wired headphones"), ("hdmi", "HDMI")]
+service.audio.playback = lambda sink: {
+    "name": sink or "headphones", "description": {"hdmi": "HDMI"}.get(sink, "Wired headphones"),
+    "kind": "HDMI / DisplayPort" if sink == "hdmi" else "Headphones",
+    "icon": "video-display-symbolic" if sink == "hdmi" else "audio-headphones-symbolic",
+    "port": "Headphones", "available": True, "default": sink is None, "muted": False,
+    "streams": [{"address": "00:00:00:00:00:01", "codec": "aac", "muted": False}],
+}
 
 TEST = "io.github.earbridge.Test"
 TEST_PATH = "/Test"
