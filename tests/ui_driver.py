@@ -28,7 +28,7 @@ def check():
     if not window or not window.state.get("active") or len(window.outputs) != 3:
         return True
     if window.state.get("output") != "hdmi":
-        window.output_row.set_selected(2)
+        window.select_output("hdmi")
         return True
     Path(ready).write_text("ready")
     if mode == "close":

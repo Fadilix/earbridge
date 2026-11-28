@@ -29,6 +29,7 @@ class Service:
         self.recovering = False
         self.scan_timeout = 0
         self.pairing = set()
+        self.emitting = 0
         self.waiting = []
         self.config_file = ipc.CONFIG_DIR / "settings.json"
         self.session_file = ipc.STATE_DIR / "session.json"
@@ -117,7 +118,13 @@ class Service:
         return [{k: self.pending[k] for k in ("id", "device", "question")}] if self.pending else []
 
     def changed(self):
+        if not self.emitting:
+            self.emitting = GLib.timeout_add(120, self.emit_changed)
+
+    def emit_changed(self):
+        self.emitting = 0
         self.bus.emit_signal(None, ipc.PATH, ipc.NAME, "Changed", GLib.Variant("(s)", (json.dumps(self.status()),)))
+        return GLib.SOURCE_REMOVE
 
     def completed(self, error, done=lambda result, error: None, message="Done."):
         self.error = error

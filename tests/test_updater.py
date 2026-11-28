@@ -27,6 +27,7 @@ class Installation:
         self.source.mkdir()
         for file in [*ROOT.glob("*.py"), ROOT / "install.sh", ROOT / "earbridge.svg"]:
             shutil.copy2(file, self.source / file.name)
+        shutil.copytree(ROOT / "web", self.source / "web")
         if fake_hardware:
             with (self.source / "service.py").open("a") as stream:
                 stream.write(f'\nsys.path.insert(0, {str(ROOT / "tests")!r})\n'

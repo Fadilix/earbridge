@@ -1,0 +1,445 @@
+<!doctype html>
+<html class="still">
+<head>
+<meta charset="utf-8">
+<title>Earbridge</title>
+<style>
+:root {
+  --bg: #0e0e10;
+  --bar: #0e0e10;
+  --card: #141417;
+  --card-hi: #18181c;
+  --chip: #1c1c20;
+  --line: #222227;
+  --line-hi: #2c2c33;
+  --wire: #26262b;
+  --fg: #e8e8ea;
+  --mid: #b5b5bc;
+  --dim: #6f6f78;
+  --live: #3ecf8e;
+  --live-soft: rgba(62, 207, 142, .15);
+  --live-ink: #04120b;
+  --menu: #18181c;
+  --shadow: 0 16px 40px rgba(0, 0, 0, .5);
+}
+:root.light {
+  --bg: #fbfbfc;
+  --bar: #f6f6f8;
+  --card: #ffffff;
+  --card-hi: #ffffff;
+  --chip: #f3f3f5;
+  --line: #e6e6ea;
+  --line-hi: #d6d6dc;
+  --wire: #dcdce1;
+  --fg: #1a1a1e;
+  --mid: #45454d;
+  --dim: #6e6e78;
+  --live: #0f9f63;
+  --live-soft: rgba(15, 159, 99, .14);
+  --live-ink: #ffffff;
+  --menu: #ffffff;
+  --shadow: 0 16px 40px rgba(20, 20, 30, .14);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body, .top, .foot, .card, .card .ic, .chip, .btn, .banner, .menu, .toast { transition: background-color .25s ease, border-color .25s ease, color .25s ease, box-shadow .25s ease; }
+body {
+  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--fg);
+  font: 13px/1.4 Inter, "Adwaita Sans", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; user-select: none; cursor: default;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
+button:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+svg.i { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.top { flex: none; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px; background: var(--bar); border-bottom: 1px solid var(--line); }
+.top img { width: 18px; height: 18px; border-radius: 5px; }
+.top .app { font-weight: 600; margin-left: 2px; }
+.top .crumb { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.top .grow { flex: 1; height: 100%; }
+.chip { height: 28px; display: inline-flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-hi); border-radius: 7px; color: var(--mid); font-size: 12px; white-space: nowrap; }
+.chip:hover { background: var(--chip); color: var(--fg); }
+.chip:disabled { opacity: .6; }
+.chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); flex: none; }
+.chip.on i { background: var(--live); animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { box-shadow: 0 0 0 2px var(--live-soft); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.square { width: 28px; padding: 0; justify-content: center; }
+
+.banner { flex: none; display: none; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, var(--live-soft), transparent 60%); }
+.banner.show { display: flex; animation: drop .3s cubic-bezier(.2, .8, .2, 1); }
+@keyframes drop { from { opacity: 0; transform: translateY(-8px); } }
+.banner p { flex: 1; min-width: 220px; white-space: pre-line; }
+.banner p b { font-weight: 600; }
+.banner .actions { display: flex; gap: 8px; margin-left: auto; }
+.btn { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12px; font-weight: 500; border: 1px solid var(--line-hi); color: var(--fg); }
+.btn:hover { background: var(--chip); }
+.btn.primary { background: var(--live); border-color: var(--live); color: var(--live-ink); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--live); }
+
+main { flex: 1; min-height: 0; overflow: auto; }
+main::-webkit-scrollbar { width: 8px; }
+main::-webkit-scrollbar-thumb { background: var(--line-hi); border-radius: 4px; }
+.graph { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 56px; padding: 28px 20px; }
+#wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.wire { fill: none; stroke: var(--wire); stroke-width: 1; }
+.wire { transition: opacity .3s; }
+.flow { fill: none; stroke: var(--live); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 1 7; animation: flow 1s linear infinite var(--d, 0s); }
+.flow.new { animation: flow 1s linear infinite var(--d, 0s), fade .6s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes flow { to { stroke-dashoffset: -16; } }
+.row { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; width: 100%; max-width: 1100px; }
+
+.card { position: relative; flex: 0 0 var(--w, 190px); min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 10px; transition: border-color .2s ease, background-color .2s ease, transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s ease, flex-basis .25s ease; }
+.card.enter { animation: enter .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--i, 0s); }
+@keyframes enter { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+button.card:hover { border-color: var(--line-hi); background: var(--card-hi); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .18); }
+button.card:active { transform: translateY(0) scale(.99); transition-duration: .06s; }
+.card .ic svg, .card small span { transition: color .25s ease; }
+.card small .now, .card small .act { animation: swap .2s ease; }
+@keyframes swap { from { opacity: 0; } }
+.card .ic { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; flex: none; background: var(--chip); border: 1px solid var(--line-hi); color: var(--dim); }
+.card .tx { min-width: 0; flex: 1; }
+.card b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card small { display: block; font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card small .act { display: none; color: var(--fg); }
+button.card:hover small .now, button.card:focus-visible small .now { display: none; }
+button.card:hover small .act, button.card:focus-visible small .act { display: inline; }
+.card.on { border-color: var(--line-hi); }
+.card.on .ic, .card.on small .now { color: var(--live); }
+.card.ghost { background: var(--bg); border-style: dashed; }
+.card.busy .ic { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.card.hub, .card.out { flex-basis: min(250px, 100%); background: var(--card-hi); border-color: var(--line-hi); }
+.card.hub b { font-weight: 600; }
+.card .chev { color: var(--dim); }
+
+.foot { flex: none; height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-top: 1px solid var(--line); background: var(--bar); color: var(--dim); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.foot .item { height: 22px; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; border-radius: 5px; min-width: 0; }
+.foot button.item:hover { background: var(--chip); color: var(--fg); }
+.foot em { font-style: normal; color: var(--mid); overflow: hidden; text-overflow: ellipsis; }
+.foot .grow { flex: 1; }
+.foot svg.i { width: 12px; height: 12px; }
+
+.menu { position: fixed; z-index: 10; display: none; min-width: 240px; max-width: min(360px, 92vw); padding: 4px; background: var(--menu); border: 1px solid var(--line-hi); border-radius: 9px; box-shadow: var(--shadow); }
+.menu.show { display: block; animation: pop .16s cubic-bezier(.2, .8, .2, 1); }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.menu .head { padding: 6px 8px 4px; font-size: 11px; color: var(--dim); }
+.menu button { width: 100%; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; text-align: left; }
+.menu button:hover, .menu button:focus-visible { background: var(--chip); outline: none; }
+.menu button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu .tick { width: 15px; color: var(--live); }
+
+.toast { position: fixed; right: 12px; bottom: 42px; z-index: 11; max-width: min(380px, 90vw); padding: 9px 12px; border-radius: 8px; background: var(--menu); border: 1px solid var(--line-hi); box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .3s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
+.toast.show { opacity: 1; transform: none; }
+
+.still *, .still *::before { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="top" id="top">
+  <img src="../earbridge.svg" alt="">
+  <span class="app">Earbridge</span>
+  <span class="crumb" id="crumb"></span>
+  <span class="grow"></span>
+  <button class="chip" id="power" role="switch" aria-checked="false"><i></i><span id="power-text">Off</span></button>
+  <button class="chip square" id="theme"></button>
+  <button class="chip square" id="close" aria-label="Close window" title="Close window"></button>
+</div>
+<div class="banner" id="banner" role="alertdialog">
+  <p id="question"></p>
+  <span class="actions">
+    <button class="btn" id="deny">Deny</button>
+    <button class="btn primary" id="allow">Allow</button>
+  </span>
+</div>
+<main>
+  <div class="graph" id="graph">
+    <svg id="wires"></svg>
+    <div class="row" id="devices"></div>
+    <div class="row" id="hub"></div>
+    <div class="row" id="out"></div>
+  </div>
+</main>
+<div class="foot">
+  <button class="item" id="output-item"><svg class="i" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/></svg>Output <em id="output-name"></em></button>
+  <span class="item" id="visible"></span>
+  <span class="grow"></span>
+  <button class="item" id="search"></button>
+</div>
+<div class="menu" id="menu" role="listbox"></div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+const glyphs = {
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  computer: '<rect x="3.5" y="5" width="17" height="11" rx="1.5"/><path d="M2 19h20"/>',
+  plus: '<path d="M12 6v12M6 12h12"/>',
+  pc: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/>',
+  chev: '<path d="M7 10l5 5 5-5"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>'
+};
+const $ = id => document.getElementById(id);
+const menu = $("menu");
+let state = null;
+let outputs = [];
+let pending = {};
+let toastTimer = 0;
+let shown = "";
+let liveBefore = new Set();
+let frame = 0;
+const nodes = new Map();
+
+function send(message) {
+  window.webkit.messageHandlers.earbridge.postMessage(JSON.stringify(message));
+}
+
+function icon(name) {
+  return '<svg class="i" viewBox="0 0 24 24">' + glyphs[name] + "</svg>";
+}
+
+function esc(value) {
+  const div = document.createElement("div");
+  div.textContent = value == null ? "" : value;
+  return div.innerHTML;
+}
+
+function card(parent, key, cls, glyph, title, now, act, tag = "button") {
+  let node = nodes.get(key);
+  if (!node) {
+    node = document.createElement(tag);
+    node.className = "card enter";
+    node.style.setProperty("--i", parent.children.length * 0.04 + "s");
+    node.addEventListener("animationend", event => { if (event.animationName === "enter") node.classList.remove("enter"); });
+    nodes.set(key, node);
+  }
+  node.used = true;
+  const enter = node.classList.contains("enter") ? " enter" : "";
+  if (node.className !== "card " + cls + enter) node.className = "card " + cls + enter;
+  const html = '<span class="ic">' + icon(glyph) + '</span><span class="tx"><b>' + esc(title) + '</b><small><span class="now">' +
+    esc(now) + "</span>" + (act ? '<span class="act">' + esc(act) + "</span>" : "") + "</small></span>" + (key === "out" ? '<span class="chev">' + icon("chev") + "</span>" : "");
+  if (node.html !== html) {
+    node.innerHTML = html;
+    node.html = html;
+  }
+  if (node.parentNode !== parent || parent.lastChild !== node) parent.append(node);
+  return node;
+}
+
+function devices() {
+  const list = state.phones.map(p => ({ ...p, kind: "paired" }));
+  for (const d of state.nearby || []) list.push({ ...d, kind: "nearby" });
+  list.push({ kind: "add", address: "add" });
+  return list;
+}
+
+function words(device) {
+  const busy = pending[device.address];
+  if (device.kind === "add") return state.scanning ? ["Searching nearby…", "Stop searching"] : ["Search nearby", "Search nearby"];
+  if (device.kind === "nearby") return device.pairing || busy ? ["Pairing…", ""] : ["Nearby · not paired", "Pair"];
+  if (busy) return [busy, ""];
+  if (!state.active) return ["Paired", "Turn on and connect"];
+  const battery = device.battery != null ? " · " + device.battery + "%" : "";
+  return device.connected ? ["Connected" + battery, "Disconnect"] : ["Not connected" + battery, "Connect"];
+}
+
+function press(device) {
+  if (state.busy || pending[device.address]) return;
+  if (device.kind === "add") return send({ action: "scan", enabled: !state.scanning });
+  if (device.kind === "nearby") {
+    pending[device.address] = "Pairing…";
+    render();
+    return send({ action: "pair", device: device.address });
+  }
+  if (!state.active) return send({ action: "start" });
+  pending[device.address] = device.connected ? "Disconnecting…" : "Connecting…";
+  render();
+  send({ action: device.connected ? "disconnect" : "connect", phone: device.address });
+}
+
+function render() {
+  if (!state) return;
+  const list = devices();
+  const live = list.filter(d => state.active && d.kind === "paired" && d.connected);
+  const count = live.length;
+  const row = $("devices");
+  nodes.forEach(node => node.used = false);
+
+  const columns = Math.max(1, Math.min(list.length, Math.floor((row.clientWidth + 12) / 182)));
+  row.style.setProperty("--w", Math.min(196, (row.clientWidth - (columns - 1) * 12) / columns) + "px");
+  const cards = list.map(d => {
+    const [now, act] = words(d);
+    const cls = (d.kind === "paired" ? "" : "ghost ") + (live.includes(d) ? "on " : "") + (pending[d.address] || d.pairing ? "busy" : "");
+    const node = card(row, d.kind + d.address, cls, d.kind === "add" ? (state.scanning ? "search" : "plus") : d.icon === "computer" ? "computer" : "phone",
+      d.kind === "add" ? "Add a device" : d.name, now, act);
+    if (d.kind !== "add") node.title = d.address;
+    node.onclick = () => press(d);
+    return node;
+  });
+
+  const hub = card($("hub"), "hub", "hub" + (count ? " on" : ""), "pc", state.adapter || "This PC",
+    !state.active ? "Not receiving" : count ? "Receiving from " + count + (count > 1 ? " devices" : " device") : "Waiting for a device", "", "div");
+
+  const playback = state.playback || {};
+  const outName = playback.description || "System default";
+  const out = card($("out"), "out", "out" + (count ? " on" : ""), "headphones", outName,
+    playback.available === false ? "Unplugged" : (playback.kind || "Output") + (state.output ? "" : " · default"), "Change output");
+  nodes.forEach((node, key) => { if (!node.used) { node.remove(); nodes.delete(key); } });
+  out.setAttribute("aria-haspopup", "listbox");
+  out.onclick = event => { event.stopPropagation(); openMenu(out); };
+
+  $("crumb").textContent = "/ " + (state.adapter || "this PC");
+  const power = $("power");
+  power.className = "chip" + (state.active ? " on" : "");
+  power.setAttribute("aria-checked", String(state.active));
+  power.disabled = !!state.busy;
+  power.title = state.active ? "Stop receiving audio" : "Start receiving audio";
+  $("power-text").textContent = state.busy ? "Working…" : state.recovery_pending ? "Restore needed" :
+    state.active ? "Receiving · " + count + " connected" : "Off · click to receive";
+  $("output-name").textContent = outName;
+  $("visible").innerHTML = state.active ? "Visible as <em>" + esc(state.adapter || "this PC") + "</em>" : "Hidden from other devices";
+  $("search").innerHTML = icon("search") + (state.scanning ? "Stop searching" : "Search nearby");
+
+  const request = (state.requests || [])[0];
+  $("banner").className = "banner" + (request ? " show" : "");
+  if (request) $("question").textContent = request.question;
+
+  draw(list, cards, live, hub, out);
+}
+
+function draw(list, cards, live, hub, out) {
+  const base = $("graph").getBoundingClientRect();
+  const box = el => {
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2 - base.left) + 0.5, top: r.top - base.top, bottom: r.bottom - base.top };
+  };
+  const h = box(hub);
+  const o = box(out);
+  const bus = Math.round(($("devices").getBoundingClientRect().bottom - base.top + h.top) / 2) + 0.5;
+  let wires = "";
+  let flows = "";
+  const delay = ' style="--d:-' + (performance.now() % 1000).toFixed(0) + 'ms"';
+  const now = new Set();
+  const flow = (key, p) => {
+    now.add(key);
+    flows += '<path class="flow' + (liveBefore.has(key) ? "" : " new") + '"' + delay + ' d="' + p + '"/>';
+  };
+  list.forEach((d, i) => {
+    if (d.kind !== "paired") return;
+    const c = box(cards[i]);
+    const r = Math.min(8, Math.abs(h.x - c.x) / 2);
+    const dir = h.x > c.x ? 1 : -1;
+    const p = r < 1 ? "M" + c.x + " " + c.bottom + " V" + h.top
+      : "M" + c.x + " " + c.bottom + " V" + (bus - r) + " Q" + c.x + " " + bus + " " + (c.x + dir * r) + " " + bus +
+        " H" + (h.x - dir * r) + " Q" + h.x + " " + bus + " " + h.x + " " + (bus + r) + " V" + h.top;
+    wires += '<path class="wire" d="' + p + '"/>';
+    if (live.includes(d)) flow(d.address, p);
+  });
+  const down = "M" + h.x + " " + h.bottom + " V" + o.top;
+  wires += '<path class="wire" d="' + down + '"/>';
+  if (live.length) flow("down", down);
+  liveBefore = now;
+  const svg = wires + flows.replace(/ style="--d:-\d+ms"/g, "");
+  if (svg === shown) return;
+  shown = svg;
+  $("wires").innerHTML = wires + flows;
+}
+
+function openMenu(anchor) {
+  menu.innerHTML = '<div class="head">Play through</div>';
+  const current = state.output || "default";
+  for (const o of outputs) {
+    const item = document.createElement("button");
+    item.setAttribute("role", "option");
+    item.innerHTML = '<span class="tick">' + (o.name === current ? "✓" : "") + "</span><span>" + esc(o.description) + "</span>";
+    item.onclick = () => { closeMenu(); if (o.name !== current) send({ action: "output", output: o.name }); };
+    menu.append(item);
+  }
+  menu.classList.add("show");
+  const r = anchor.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(innerWidth - width - 8, r.left + r.width / 2 - width / 2)) + "px";
+  menu.style.top = (r.bottom + 6 + height < innerHeight ? r.bottom + 6 : Math.max(8, r.top - 6 - height)) + "px";
+  menu.querySelector("button")?.focus();
+}
+
+function closeMenu() {
+  menu.classList.remove("show");
+}
+
+function update(next) {
+  const before = state;
+  state = next;
+  if (before) {
+    for (const address of Object.keys(pending)) {
+      const was = before.phones.find(p => p.address === address);
+      const now = state.phones.find(p => p.address === address);
+      if (!was || !now || was.connected !== now.connected) delete pending[address];
+    }
+  }
+  render();
+}
+
+function setOutputs(list) {
+  outputs = list;
+}
+
+function toast(message) {
+  pending = {};
+  render();
+  $("toast").textContent = message;
+  $("toast").className = "toast show";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").className = "toast", 5000);
+}
+
+function setTheme(dark) {
+  document.documentElement.classList.toggle("light", !dark);
+  $("theme").innerHTML = icon(dark ? "sun" : "moon");
+  $("theme").title = dark ? "Light theme" : "Dark theme";
+  $("theme").setAttribute("aria-label", $("theme").title);
+  render();
+}
+
+function serviceGone() {
+  $("power-text").textContent = "Service stopped · reopen Earbridge";
+  $("power").disabled = true;
+  $("graph").style.opacity = ".4";
+  $("graph").style.pointerEvents = "none";
+}
+
+$("close").innerHTML = icon("close");
+$("close").onclick = () => send({ action: "close" });
+$("theme").onclick = () => {
+  const dark = document.documentElement.classList.contains("light");
+  setTheme(dark);
+  send({ action: "theme", dark });
+};
+$("power").onclick = () => send({ action: state.active ? "stop" : "start" });
+$("search").onclick = () => send({ action: "scan", enabled: !state.scanning });
+$("output-item").onclick = event => { event.stopPropagation(); openMenu($("output-item")); };
+$("allow").onclick = () => send({ action: "approve", request_id: state.requests[0].id });
+$("deny").onclick = () => send({ action: "deny", request_id: state.requests[0].id });
+$("top").addEventListener("mousedown", event => {
+  if (event.button !== 0 || event.target.closest("button")) return;
+  send({ action: event.detail > 1 ? "maximize" : "move", x: event.clientX, y: event.clientY });
+});
+document.addEventListener("click", closeMenu);
+document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(render);
+});
+setTheme(!matchMedia("(prefers-color-scheme: light)").matches);
+setTimeout(() => document.documentElement.classList.remove("still"), 400);
+</script>
+</body>
+</html>

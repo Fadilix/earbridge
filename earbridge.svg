@@ -1,29 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <title>Earbridge</title>
-  <!-- One pair of headphones; audio from several devices meets in the middle. -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4f46e5"/>
-      <stop offset="1" stop-color="#1e1b4b"/>
-    </linearGradient>
-  </defs>
-  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <g transform="translate(0 -6)">
-  <!-- headphones -->
-  <path d="M27 72a37 37 0 0 1 74 0" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
-  <rect x="17" y="64" width="20" height="32" rx="9" fill="#fff"/>
-  <rect x="91" y="64" width="20" height="32" rx="9" fill="#fff"/>
-  <!-- three sources converging into one stream -->
-  <g fill="none" stroke="#5eead4" stroke-width="4.5" stroke-linecap="round">
-    <path d="M40 110C40 92 64 96 64 78"/>
-    <path d="M64 112V78"/>
-    <path d="M88 110C88 92 64 96 64 78"/>
-  </g>
-  <circle cx="64" cy="74" r="7.5" fill="#5eead4"/>
-  <g fill="#5eead4">
-    <circle cx="40" cy="111" r="4.5"/>
-    <circle cx="64" cy="113" r="4.5"/>
-    <circle cx="88" cy="111" r="4.5"/>
-  </g>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#141417"/>
+  <rect x="4.5" y="4.5" width="119" height="119" rx="27.5" fill="none" stroke="#2c2c33"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38 30v10q0 8 8 8h36q8 0 8-8V30M64 30v32" stroke="#3a3a42" stroke-width="5"/>
+    <path d="M64 48v14" stroke="#3ecf8e" stroke-width="5" stroke-dasharray="0.1 9"/>
+    <path d="M36 92v-6a28 28 0 0 1 56 0v6" stroke="#e8e8ea" stroke-width="7"/>
+    <rect x="30" y="84" width="14" height="22" rx="6" fill="#e8e8ea"/>
+    <rect x="84" y="84" width="14" height="22" rx="6" fill="#e8e8ea"/>
+    <circle cx="38" cy="30" r="5" fill="#3a3a42"/>
+    <circle cx="64" cy="30" r="5" fill="#3ecf8e"/>
+    <circle cx="90" cy="30" r="5" fill="#3a3a42"/>
   </g>
 </svg>

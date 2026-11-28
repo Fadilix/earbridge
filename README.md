@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="earbridge.svg?v=3" alt="Earbridge logo" width="112">
+<img src="earbridge.svg?v=8" alt="Earbridge logo" width="112">
 
 # Earbridge
 
@@ -11,7 +11,7 @@ Play your phone, tablet or laptop through the headphones on your PC. Wireless fr
 ![Linux](https://img.shields.io/badge/Linux-only-1e1b4b?logo=linux&logoColor=white)
 ![PipeWire](https://img.shields.io/badge/audio-PipeWire-6366f1)
 ![BlueZ](https://img.shields.io/badge/bluetooth-BlueZ-6366f1)
-![GTK4](https://img.shields.io/badge/UI-GTK4%20%2B%20libadwaita-5eead4?labelColor=1e1b4b)
+![GTK4](https://img.shields.io/badge/UI-GTK4%20%2B%20WebKitGTK-5eead4?labelColor=1e1b4b)
 
 </div>
 
@@ -52,7 +52,7 @@ Earbridge runs as a background service. The CLI, window, and tray all control th
 ## Features
 
 - **CLI controls** for reception, phone connections, outputs, and pairing approvals.
-- **A window that shows the whole route**: which device you're listening to, this PC, and the headphones it plays on, with a live indicator while audio flows. It also shows battery level, what's playing (with play/pause/next/previous), and one button to start listening.
+- **A window that shows the whole route**: every paired device on top, this PC in the middle, and the headphones at the bottom, with a live flow from each connected device. It shows battery levels, lets you connect, disconnect, pair and change the output in place, and has a dark and a light theme.
 - **Tray indicator** with reception status, Open Earbridge, Enable/Disable reception, and Quit Earbridge. Clicking the icon opens the window.
 - **Pick the output** ("Play through"): headphones, HDMI, or the system default. Only the phone's audio is moved; your other PC sounds stay where they are.
 - **Pick the devices**: paired phones, tablets and laptops are listed with a connect switch each.
@@ -67,14 +67,14 @@ Earbridge runs as a background service. The CLI, window, and tray all control th
 
 - Linux with **PipeWire** (with Bluetooth support) and **BlueZ**
 - A Bluetooth adapter
-- Python 3 with **PyGObject**, **GTK 4** and **libadwaita**
+- Python 3 with **PyGObject**, **GTK 4**, **libadwaita** and **WebKitGTK 6.0** (for the window)
 - **Git** to download updates
 - A desktop session D-Bus. A **StatusNotifierItem** tray host is needed to show the panel icon (for example, a Waybar `tray` module). Without a tray host, the CLI and window still work. Notification buttons require a notification server with action support; the window and CLI can always approve requests.
 
 On Arch Linux:
 
 ```sh
-sudo pacman -S --needed python-gobject gtk4 libadwaita pipewire-audio libpulse bluez bluez-utils util-linux git
+sudo pacman -S --needed python-gobject gtk4 libadwaita webkitgtk-6.0 pipewire-audio libpulse bluez bluez-utils util-linux git
 sudo systemctl enable --now bluetooth
 ```
 
@@ -149,7 +149,7 @@ earbridge quit                     # Also exit the background service and tray
 earbridge --json status            # JSON output for scripts
 ```
 
-Alternatively, open **Earbridge** from your app launcher, turn on **Receive phone audio**, and select your headphones in **Play through**. The window can be closed at any time without interrupting audio. The tray stays available while the service runs, even with reception disabled.
+Alternatively, open **Earbridge** from your app launcher, click the status chip in the top bar to start receiving, and pick your headphones by clicking the output card. The window can be closed at any time without interrupting audio. The tray stays available while the service runs, even with reception disabled.
 
 Reception at login is off by default:
 
@@ -169,7 +169,8 @@ These commands manage `~/.config/autostart/earbridge.desktop` (or the equivalent
 | `service.py` | One background service per desktop session, with D-Bus commands and notifications. |
 | `bridge.py` | Bridge lifetime, saved adapter state, shutdown and crash recovery. |
 | `ipc.py` | Shared session-bus client and detached process startup. |
-| `ui.py` | GTK4/libadwaita window; a client of the service. |
+| `ui.py` | Window host: a WebKitGTK view and the bridge between the page and the service. |
+| `web/index.html` | The window's interface: the device flow, output picker and pairing prompts. |
 | `tray.py` | Independent StatusNotifierItem and D-Bus menu; no AppIndicator/GTK3 dependency. |
 | `updater.py` | Git updates, staged installation, process restart and rollback. |
 | `bluez.py` | Talks to BlueZ over D-Bus: adapter settings, the phones list, and a pairing agent that asks you before accepting a phone. |

@@ -36,8 +36,10 @@ need git git
 need pactl libpulse
 need setpriv util-linux
 need bluetoothctl bluez-utils
-python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1"); from gi.repository import Gtk, Adw' \
-    >/dev/null 2>&1 || missing="$missing python-gobject gtk4 libadwaita"
+python3 -c 'import gi; gi.require_version("Gio","2.0"); from gi.repository import Gio' \
+    >/dev/null 2>&1 || missing="$missing python-gobject"
+python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1"); gi.require_version("WebKit","6.0")' \
+    >/dev/null 2>&1 || missing="$missing gtk4 libadwaita webkitgtk-6.0"
 if [ -n "$missing" ]; then
     echo "Missing dependencies. Install them first:" >&2
     echo "  sudo pacman -S --needed$missing pipewire-audio bluez" >&2
@@ -47,6 +49,8 @@ fi
 install -d "$APP" "$(dirname "$BIN")" "$(dirname "$DESKTOP")" "$(dirname "$ICON")"
 install -m 644 "$SRC/bluez.py" "$SRC/audio.py" "$SRC/bridge.py" "$SRC/ipc.py" \
     "$SRC/service.py" "$SRC/tray.py" "$SRC/ui.py" "$SRC/updater.py" "$SRC/earbridge.svg" "$APP/"
+install -d "$APP/web"
+install -m 644 "$SRC/web/index.html" "$APP/web/"
 install -m 644 "$SRC/earbridge.svg" "$ICON"
 install -m 755 "$SRC/earbridge.py" "$APP/"
 ln -sf "$PREFIX/share/earbridge/earbridge.py" "$BIN"
